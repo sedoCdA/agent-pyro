@@ -1,0 +1,38 @@
+============================================================
+  STEP 4 — Primary Models Classification Report
+============================================================
+
+  Baseline reference:
+  Logistic Regression  Accuracy: 0.9523   Macro F1: 0.9215
+  Decision Tree        Accuracy: 0.9864   Macro F1: 0.9736
+
+── XGBoost ──────────────────────────────
+  Accuracy  : 0.9932
+  Macro F1  : 0.9859
+
+                precision    recall  f1-score   support
+
+       Allowed       1.00      0.98      0.99       105
+       Blocked       1.00      1.00      1.00       287
+Needs Approval       0.96      0.98      0.97        48
+
+      accuracy                           0.99       440
+     macro avg       0.99      0.99      0.99       440
+  weighted avg       0.99      0.99      0.99       440
+
+
+── LightGBM ──────────────────────────────
+  Accuracy  : 0.9955
+  Macro F1  : 0.9909
+
+                precision    recall  f1-score   support
+
+       Allowed       1.00      0.99      1.00       105
+       Blocked       1.00      1.00      1.00       287
+Needs Approval       0.98      0.98      0.98        48
+
+      accuracy                           1.00       440
+     macro avg       0.99      0.99      0.99       440
+  weighted avg       1.00      1.00      1.00       440
+
+
