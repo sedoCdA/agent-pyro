@@ -1,0 +1,32 @@
+============================================================
+  STEP 5 — Evaluation Report  [LightGBM]
+============================================================
+
+  Accuracy            : 0.9955
+  Macro F1            : 0.9909
+  Macro ROC-AUC       : 0.9999
+
+  Confidence scores (max predicted probability):
+    Mean              : 0.9980
+    Median            : 1.0000
+    Std dev           : 0.0156
+    % above 0.90      : 99.5%
+    % above 0.95      : 98.9%
+    % above 0.99      : 98.4%
+
+  Classification Report:
+                precision    recall  f1-score   support
+
+       Allowed       1.00      0.99      1.00       105
+       Blocked       1.00      1.00      1.00       287
+Needs Approval       0.98      0.98      0.98        48
+
+      accuracy                           1.00       440
+     macro avg       0.99      0.99      0.99       440
+  weighted avg       1.00      1.00      1.00       440
+
+  Confusion Matrix (raw counts):
+                Allowed  Blocked  Needs Approval
+Allowed             104        0               1
+Blocked               0      287               0
+Needs Approval        0        1              47
