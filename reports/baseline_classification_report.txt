@@ -1,0 +1,34 @@
+============================================================
+  STEP 3 — Baseline Models Classification Report
+============================================================
+
+── Logistic Regression ──────────────────────────────
+  Accuracy : 0.9523
+  Macro F1 : 0.9215
+
+                precision    recall  f1-score   support
+
+       Allowed       1.00      0.95      0.98       105
+       Blocked       1.00      0.95      0.97       287
+Needs Approval       0.70      0.98      0.82        48
+
+      accuracy                           0.95       440
+     macro avg       0.90      0.96      0.92       440
+  weighted avg       0.97      0.95      0.96       440
+
+
+── Decision Tree ──────────────────────────────
+  Accuracy : 0.9864
+  Macro F1 : 0.9736
+
+                precision    recall  f1-score   support
+
+       Allowed       1.00      0.98      0.99       105
+       Blocked       0.99      1.00      0.99       287
+Needs Approval       0.94      0.94      0.94        48
+
+      accuracy                           0.99       440
+     macro avg       0.98      0.97      0.97       440
+  weighted avg       0.99      0.99      0.99       440
+
+
