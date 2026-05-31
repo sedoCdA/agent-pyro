@@ -1,6 +1,6 @@
 """
 =============================================================
-Step 3 — Baseline Models
+Step 3 — Baseline Models  (v2 — leakage-free)
 =============================================================
 Purpose:
     Establish a performance benchmark before training the primary
@@ -14,10 +14,19 @@ Purpose:
     Both are trained on the SMOTE-resampled training set and
     evaluated on the untouched test set.
 
+    Feature set: 11 clean features (v2 — leakage-free)
+      Categorical (5): agent_role, user_role, requested_action,
+                       tool_requested, resource_type
+      Numeric     (3): agent_autonomy_level, resource_sensitivity,
+                       previous_failed_attempts
+      Binary      (3): permission_match, prompt_injection_detected,
+                       audit_log_available
+
 Outputs (saved to reports/):
     - baseline_confusion_matrices.png
     - baseline_classification_report.txt
     - baseline_decision_tree.png
+    - baseline_model_comparison.png
 
 Outputs (saved to models/):
     - baseline_logistic_regression.pkl
@@ -56,12 +65,17 @@ CLASS_NAMES = ["Allowed", "Blocked", "Needs Approval"]
 
 # ── 1. Load preprocessed data ─────────────────────────────────────────────────
 def load_data():
-    """Load the artifacts produced by Step 2."""
+    """Load the artifacts produced by Step 2 (v2 — 11 clean features)."""
     X_train = joblib.load(os.path.join(MODELS_DIR, "X_train_resampled.pkl"))
     y_train = joblib.load(os.path.join(MODELS_DIR, "y_train_resampled.pkl"))
     X_test  = joblib.load(os.path.join(MODELS_DIR, "X_test.pkl"))
     y_test  = joblib.load(os.path.join(MODELS_DIR, "y_test.pkl"))
     print(f"[BASE] Train set : {X_train.shape}  |  Test set : {X_test.shape}")
+    print(f"[BASE] Expected feature count: 11  —  actual: {X_train.shape[1]}")
+    assert X_train.shape[1] == 11, (
+        f"Feature count mismatch! Got {X_train.shape[1]}, expected 11. "
+        "Re-run preprocessing.py first."
+    )
     return X_train, y_train, X_test, y_test
 
 
@@ -146,8 +160,11 @@ def plot_confusion_matrices(results: list, y_test: np.ndarray) -> None:
         ax.tick_params(axis="x", rotation=15)
         ax.tick_params(axis="y", rotation=0)
 
-    plt.suptitle("Baseline Models — Confusion Matrices (normalised)", 
-                 fontweight="bold", y=1.02)
+    plt.suptitle(
+        "Baseline Models — Confusion Matrices (normalised)\n"
+        "v2 clean features — no leakage",
+        fontweight="bold", y=1.02
+    )
     plt.tight_layout()
     path = os.path.join(REPORTS_DIR, "baseline_confusion_matrices.png")
     plt.savefig(path, dpi=150, bbox_inches="tight")
@@ -174,7 +191,10 @@ def plot_decision_tree(model: DecisionTreeClassifier,
         fontsize=8,
         ax=ax
     )
-    ax.set_title("Decision Tree — Top 4 Levels", fontweight="bold", pad=12)
+    ax.set_title(
+        "Decision Tree — Top 4 Levels  (v2 clean features)",
+        fontweight="bold", pad=12
+    )
     plt.tight_layout()
     path = os.path.join(REPORTS_DIR, "baseline_decision_tree.png")
     plt.savefig(path, dpi=120, bbox_inches="tight")
@@ -185,17 +205,18 @@ def plot_decision_tree(model: DecisionTreeClassifier,
 # ── 6. Plot: model comparison bar chart ───────────────────────────────────────
 def plot_model_comparison(results: list) -> None:
     """Bar chart comparing accuracy and macro F1 across baseline models."""
-    names   = [r["name"] for r in results]
-    acc     = [r["accuracy"]  for r in results]
-    f1      = [r["macro_f1"]  for r in results]
+    names = [r["name"] for r in results]
+    acc   = [r["accuracy"]  for r in results]
+    f1    = [r["macro_f1"]  for r in results]
 
     x     = np.arange(len(names))
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(7, 4))
-#  Fixed code (removed borderpad)
-    bars1 = ax.bar(x - width/2, acc, width, label="Accuracy", color="#4A90D9", edgecolor="none")
-    bars2 = ax.bar(x + width/2, f1,  width, label="Macro F1",  color="#1D9E75", edgecolor="none")
+    bars1 = ax.bar(x - width/2, acc, width, label="Accuracy",
+                   color="#4A90D9", edgecolor="none")
+    bars2 = ax.bar(x + width/2, f1,  width, label="Macro F1",
+                   color="#1D9E75", edgecolor="none")
 
     for bars in [bars1, bars2]:
         for bar in bars:
@@ -210,7 +231,10 @@ def plot_model_comparison(results: list) -> None:
     ax.set_xticks(x)
     ax.set_xticklabels(names, fontsize=11)
     ax.set_ylabel("Score")
-    ax.set_title("Baseline Model Comparison", fontweight="bold", pad=12)
+    ax.set_title(
+        "Baseline Model Comparison  (v2 clean features)",
+        fontweight="bold", pad=12
+    )
     ax.legend(frameon=False)
     sns.despine()
     plt.tight_layout()
@@ -227,6 +251,7 @@ def save_classification_report(results: list, y_test: np.ndarray) -> None:
     with open(path, "w", encoding="utf-8") as f:
         f.write("=" * 60 + "\n")
         f.write("  STEP 3 — Baseline Models Classification Report\n")
+        f.write("  v2 — leakage-free (11 clean features)\n")
         f.write("=" * 60 + "\n\n")
         for result in results:
             f.write(f"── {result['name']} ──────────────────────────────\n")
@@ -256,7 +281,8 @@ def save_models(results: list) -> None:
 def get_feature_names() -> list:
     """
     Reconstruct the ordered feature names after ColumnTransformer.
-    Must match the column order defined in preprocessing.py.
+    Order must match exactly: categorical → numeric → binary.
+    Imported directly from preprocessing.py to stay in sync.
     """
     from preprocessing import CATEGORICAL_COLS, NUMERIC_COLS, BINARY_COLS
     return CATEGORICAL_COLS + NUMERIC_COLS + BINARY_COLS
@@ -265,7 +291,7 @@ def get_feature_names() -> list:
 # ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 60)
-    print("  STEP 3 — Baseline Models")
+    print("  STEP 3 — Baseline Models  (v2 — leakage-free)")
     print("=" * 60)
 
     # Load data
@@ -294,6 +320,9 @@ if __name__ == "__main__":
 
     # Summary
     print("\n── Summary ───────────────────────────────────────────")
+    print(f"  {'Model':<25} {'Accuracy':>10}   {'Macro F1':>10}")
+    print(f"  {'─'*25}   {'─'*10}   {'─'*10}")
     for r in results:
-        print(f"  {r['name']:<25} Accuracy: {r['accuracy']:.4f}   Macro F1: {r['macro_f1']:.4f}")
-    
+        print(f"  {r['name']:<25} {r['accuracy']:>10.4f}   {r['macro_f1']:>10.4f}")
+    print("\n[BASE] Step 3 complete.")
+    print("[BASE] Next → Step 4: Primary Model (XGBoost + LightGBM)\n")

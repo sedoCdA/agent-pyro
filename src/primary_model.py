@@ -1,6 +1,6 @@
 """
 =============================================================
-Step 4 — Primary Model (XGBoost + LightGBM)
+Step 4 — Primary Model (XGBoost + LightGBM)  (v2 — leakage-free)
 =============================================================
 Purpose:
     Train two gradient-boosted tree models with hyperparameter
@@ -17,6 +17,18 @@ Purpose:
     Tuning strategy:
       RandomizedSearchCV with 5-fold stratified cross-validation.
       Optimises for macro F1 to treat all three classes equally.
+
+    Feature set: 11 clean features (v2 — leakage-free)
+      Categorical (5): agent_role, user_role, requested_action,
+                       tool_requested, resource_type
+      Numeric     (3): agent_autonomy_level, resource_sensitivity,
+                       previous_failed_attempts
+      Binary      (3): permission_match, prompt_injection_detected,
+                       audit_log_available
+
+    Baseline reference (v2 clean — from Step 3):
+      Logistic Regression  Accuracy: 0.8523   Macro F1: 0.7417
+      Decision Tree        Accuracy: 0.9159   Macro F1: 0.8661
 
 Outputs (saved to reports/):
     - primary_confusion_matrices.png
@@ -62,10 +74,17 @@ REPORTS_DIR = "reports"
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-CLASS_NAMES   = ["Allowed", "Blocked", "Needs Approval"]
-RANDOM_STATE  = 42
-CV_FOLDS      = 5
-N_ITER        = 30          # number of random hyperparameter combinations to try
+CLASS_NAMES  = ["Allowed", "Blocked", "Needs Approval"]
+RANDOM_STATE = 42
+CV_FOLDS     = 5
+N_ITER       = 30          # number of random hyperparameter combinations to try
+
+# ── Baseline reference scores (v2 clean — from Step 3) ────────────────────────
+# Updated from v1 leaky values (LR: 0.9215, DT: 0.9736) to honest clean scores.
+BASELINE_RESULTS = [
+    {"name": "Logistic\nRegression", "accuracy": 0.8523, "macro_f1": 0.7417},
+    {"name": "Decision\nTree",       "accuracy": 0.9159, "macro_f1": 0.8661},
+]
 
 
 # ── 1. Load preprocessed data ─────────────────────────────────────────────────
@@ -76,6 +95,10 @@ def load_data():
     X_test  = joblib.load(os.path.join(MODELS_DIR, "X_test.pkl"))
     y_test  = joblib.load(os.path.join(MODELS_DIR, "y_test.pkl"))
     print(f"[PRIM] Train : {X_train.shape}  |  Test : {X_test.shape}")
+    assert X_train.shape[1] == 11, (
+        f"Feature count mismatch! Got {X_train.shape[1]}, expected 11. "
+        "Re-run preprocessing.py first."
+    )
     return X_train, y_train, X_test, y_test
 
 
@@ -203,8 +226,11 @@ def plot_confusion_matrices(results: list, y_test: np.ndarray) -> None:
         ax.tick_params(axis="x", rotation=15)
         ax.tick_params(axis="y", rotation=0)
 
-    plt.suptitle("Primary Models — Confusion Matrices (normalised)",
-                 fontweight="bold", y=1.02)
+    plt.suptitle(
+        "Primary Models — Confusion Matrices (normalised)\n"
+        "v2 clean features — no leakage",
+        fontweight="bold", y=1.02
+    )
     plt.tight_layout()
     path = os.path.join(REPORTS_DIR, "primary_confusion_matrices.png")
     plt.savefig(path, dpi=150, bbox_inches="tight")
@@ -216,18 +242,20 @@ def plot_confusion_matrices(results: list, y_test: np.ndarray) -> None:
 def plot_model_comparison(results: list) -> None:
     """
     Bar chart comparing all four models (baselines + primary).
-    Baseline numbers are loaded from the classification report.
+    Baseline numbers are the honest v2 scores from Step 3.
     """
-    # Baseline numbers from Step 3
-    all_results = [
-        {"name": "Logistic\nRegression", "accuracy": 0.9523, "macro_f1": 0.9215},
-        {"name": "Decision\nTree",       "accuracy": 0.9864, "macro_f1": 0.9736},
-    ] + [{"name": r["name"].replace(" ", "\n"), 
-          "accuracy": r["accuracy"], "macro_f1": r["macro_f1"]} for r in results]
+    all_results = BASELINE_RESULTS + [
+        {
+            "name":      r["name"].replace(" ", "\n"),
+            "accuracy":  r["accuracy"],
+            "macro_f1":  r["macro_f1"]
+        }
+        for r in results
+    ]
 
-    names  = [r["name"] for r in all_results]
-    acc    = [r["accuracy"]  for r in all_results]
-    f1     = [r["macro_f1"]  for r in all_results]
+    names = [r["name"] for r in all_results]
+    acc   = [r["accuracy"]  for r in all_results]
+    f1    = [r["macro_f1"]  for r in all_results]
 
     x     = np.arange(len(names))
     width = 0.35
@@ -249,16 +277,19 @@ def plot_model_comparison(results: list) -> None:
                 ha="center", va="bottom", fontsize=9
             )
 
-    ax.set_ylim(0.85, 1.05)
+    ax.set_ylim(0.60, 1.05)
     ax.set_xticks(x)
     ax.set_xticklabels(names, fontsize=10)
     ax.set_ylabel("Score")
-    ax.set_title("All Models — Accuracy & Macro F1 Comparison\n(darker = primary models)",
-                 fontweight="bold", pad=12)
+    ax.set_title(
+        "All Models — Accuracy & Macro F1 Comparison\n"
+        "v2 clean features  |  darker = primary models",
+        fontweight="bold", pad=12
+    )
     ax.legend(frameon=False)
     ax.axvline(1.5, color="#cccccc", linestyle="--", linewidth=0.8)
-    ax.text(0.75, 1.03, "Baselines", ha="center", fontsize=9, color="#888888")
-    ax.text(2.5,  1.03, "Primary",   ha="center", fontsize=9, color="#888888")
+    ax.text(0.75, 1.02, "Baselines", ha="center", fontsize=9, color="#888888")
+    ax.text(2.5,  1.02, "Primary",   ha="center", fontsize=9, color="#888888")
     sns.despine()
     plt.tight_layout()
     path = os.path.join(REPORTS_DIR, "primary_model_comparison.png")
@@ -286,10 +317,11 @@ def save_classification_report(results: list, y_test: np.ndarray) -> None:
     with open(path, "w", encoding="utf-8") as f:
         f.write("=" * 60 + "\n")
         f.write("  STEP 4 — Primary Models Classification Report\n")
+        f.write("  v2 — leakage-free (11 clean features)\n")
         f.write("=" * 60 + "\n\n")
-        f.write("  Baseline reference:\n")
-        f.write("  Logistic Regression  Accuracy: 0.9523   Macro F1: 0.9215\n")
-        f.write("  Decision Tree        Accuracy: 0.9864   Macro F1: 0.9736\n\n")
+        f.write("  Baseline reference (v2 clean):\n")
+        f.write("  Logistic Regression  Accuracy: 0.8523   Macro F1: 0.7417\n")
+        f.write("  Decision Tree        Accuracy: 0.9159   Macro F1: 0.8661\n\n")
         for result in results:
             f.write(f"── {result['name']} ──────────────────────────────\n")
             f.write(f"  Accuracy  : {result['accuracy']:.4f}\n")
@@ -317,7 +349,7 @@ def save_models(results: list) -> None:
         print(f"[PRIM] Saved → {path}")
 
     # Select best model by macro F1
-    best = max(results, key=lambda r: r["macro_f1"])
+    best      = max(results, key=lambda r: r["macro_f1"])
     best_path = os.path.join(MODELS_DIR, "best_model.pkl")
     joblib.dump(best["model"], best_path)
     print(f"[PRIM] Best model  → {best['name']}  (Macro F1: {best['macro_f1']:.4f})")
@@ -332,7 +364,7 @@ def save_models(results: list) -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 60)
-    print("  STEP 4 — Primary Model (XGBoost + LightGBM)")
+    print("  STEP 4 — Primary Model (XGBoost + LightGBM)  (v2)")
     print("=" * 60)
 
     # Load data
@@ -377,9 +409,9 @@ if __name__ == "__main__":
     print("\n── Summary ───────────────────────────────────────────")
     print(f"  {'Model':<12} {'Accuracy':>10}   {'Macro F1':>10}")
     print(f"  {'─'*12}   {'─'*10}   {'─'*10}")
-    print(f"  {'LR (base)':<12} {'0.9523':>10}   {'0.9215':>10}")
-    print(f"  {'DT (base)':<12} {'0.9864':>10}   {'0.9736':>10}")
+    print(f"  {'LR (base)':<12} {'0.8523':>10}   {'0.7417':>10}")
+    print(f"  {'DT (base)':<12} {'0.9159':>10}   {'0.8661':>10}")
     for r in results:
         print(f"  {r['name']:<12} {r['accuracy']:>10.4f}   {r['macro_f1']:>10.4f}")
-    print("\n[PRIM] Step 4 complete. Ready to commit.")
+    print("\n[PRIM] Step 4 complete.")
     print("[PRIM] Next → Step 5: Evaluation & Confidence Scoring\n")

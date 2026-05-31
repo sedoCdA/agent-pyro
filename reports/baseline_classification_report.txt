@@ -1,34 +1,35 @@
 ============================================================
   STEP 3 — Baseline Models Classification Report
+  v2 — leakage-free (11 clean features)
 ============================================================
 
 ── Logistic Regression ──────────────────────────────
-  Accuracy : 0.9523
-  Macro F1 : 0.9215
+  Accuracy : 0.8523
+  Macro F1 : 0.7417
 
                 precision    recall  f1-score   support
 
-       Allowed       1.00      0.95      0.98       105
+       Allowed       0.84      0.65      0.73       105
        Blocked       1.00      0.95      0.97       287
-Needs Approval       0.70      0.98      0.82        48
+Needs Approval       0.41      0.73      0.52        48
 
-      accuracy                           0.95       440
-     macro avg       0.90      0.96      0.92       440
-  weighted avg       0.97      0.95      0.96       440
+      accuracy                           0.85       440
+     macro avg       0.75      0.77      0.74       440
+  weighted avg       0.89      0.85      0.87       440
 
 
 ── Decision Tree ──────────────────────────────
-  Accuracy : 0.9864
-  Macro F1 : 0.9736
+  Accuracy : 0.9159
+  Macro F1 : 0.8661
 
                 precision    recall  f1-score   support
 
-       Allowed       1.00      0.98      0.99       105
-       Blocked       0.99      1.00      0.99       287
-Needs Approval       0.94      0.94      0.94        48
+       Allowed       0.89      0.89      0.89       105
+       Blocked       0.99      0.93      0.96       287
+Needs Approval       0.64      0.90      0.75        48
 
-      accuracy                           0.99       440
-     macro avg       0.98      0.97      0.97       440
-  weighted avg       0.99      0.99      0.99       440
+      accuracy                           0.92       440
+     macro avg       0.84      0.90      0.87       440
+  weighted avg       0.93      0.92      0.92       440
 
 

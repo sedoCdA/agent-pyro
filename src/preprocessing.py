@@ -1,6 +1,6 @@
 """
 =============================================================
-Step 2 — Preprocessing Pipeline
+Step 2 — Preprocessing Pipeline  (v2 — leakage-free)
 =============================================================
 Purpose:
     Transform the raw dataset into a clean, model-ready form.
@@ -12,9 +12,22 @@ Purpose:
       - Handling class imbalance with SMOTE (on training set only)
       - Saving the processed splits and fitted encoders for reuse
 
+Feature set (11 clean features — leakage-free):
+    Categorical (5) : agent_role, user_role, requested_action,
+                      tool_requested, resource_type
+    Numeric     (3) : agent_autonomy_level, resource_sensitivity,
+                      previous_failed_attempts
+    Binary      (3) : permission_match, prompt_injection_detected,
+                      audit_log_available
+
+Removed vs v1 (feature leakage):
+    - human_approval_required   ← restatement of the target label
+    - action_risk_score         ← pre-computed aggregate risk score
+    - data_exfiltration_risk    ← pre-computed risk score
+
 Outputs (saved to models/):
-    - preprocessor.pkl     ← fitted ColumnTransformer (encoder + scaler)
-    - label_encoder.pkl    ← fitted LabelEncoder for the target
+    - preprocessor.pkl
+    - label_encoder.pkl
     - X_train.pkl, y_train.pkl
     - X_test.pkl,  y_test.pkl
     - X_train_resampled.pkl, y_train_resampled.pkl  ← after SMOTE
@@ -44,7 +57,7 @@ REPORTS_DIR = "reports"
 os.makedirs(MODELS_DIR,  exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-# ── Column definitions ────────────────────────────────────────────────────────
+# ── Column definitions (v2 — leakage-free) ───────────────────────────────────
 CATEGORICAL_COLS = [
     "agent_role",
     "user_role",
@@ -53,39 +66,47 @@ CATEGORICAL_COLS = [
     "resource_type",
 ]
 
+# Removed from v1: action_risk_score, data_exfiltration_risk
+# Both were pre-computed aggregate scores derived from the same
+# labelling logic that produced the target — circular by design.
 NUMERIC_COLS = [
     "agent_autonomy_level",
     "resource_sensitivity",
-    "action_risk_score",
-    "data_exfiltration_risk",
     "previous_failed_attempts",
 ]
 
-# Binary cols are numeric but already 0/1 — kept as-is, no scaling needed
+# Removed from v1: human_approval_required
+# That column is a direct restatement of the target label
+# (Needs_Human_Approval ↔ human_approval_required=1). Keeping it
+# would let the model trivially memorise the answer.
 BINARY_COLS = [
     "permission_match",
     "prompt_injection_detected",
-    "human_approval_required",
     "audit_log_available",
 ]
 
 TARGET_COL = "access_decision"
 
+
 # ── 1. Load data ───────────────────────────────────────────────────────────────
 def load_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
-    print(f"[PREP] Loaded dataset: {df.shape[0]:,} rows × {df.shape[1]} columns")
+    print(f"[PREP] Loaded dataset : {df.shape[0]:,} rows × {df.shape[1]} columns")
     return df
 
 
 # ── 2. Split features and target ──────────────────────────────────────────────
 def split_features_target(df: pd.DataFrame):
-    """Separate X (features) and y (target)."""
+    """
+    Select only the 11 clean features.
+    Any extra columns in the CSV (including the 3 leaky ones) are
+    silently ignored via this explicit allowlist.
+    """
     feature_cols = CATEGORICAL_COLS + NUMERIC_COLS + BINARY_COLS
     X = df[feature_cols].copy()
     y = df[TARGET_COL].copy()
-    print(f"[PREP] Features : {X.shape[1]} columns")
-    print(f"[PREP] Target   : {y.value_counts().to_dict()}")
+    print(f"[PREP] Features used  : {X.shape[1]}  {feature_cols}")
+    print(f"[PREP] Target         : {y.value_counts().to_dict()}")
     return X, y
 
 
@@ -96,12 +117,12 @@ def build_preprocessor() -> ColumnTransformer:
       - OrdinalEncoder  → categorical columns
         (suitable for tree-based models; avoids sparse high-dim one-hot)
       - StandardScaler  → continuous numeric columns
-      - passthrough      → binary 0/1 columns (already scaled)
+      - passthrough      → binary 0/1 columns (already on a 0-1 scale)
     """
     categorical_transformer = Pipeline(steps=[
         ("encoder", OrdinalEncoder(
             handle_unknown="use_encoded_value",
-            unknown_value=-1          # unseen categories get -1 at inference
+            unknown_value=-1      # unseen categories at inference get -1
         ))
     ])
 
@@ -111,11 +132,11 @@ def build_preprocessor() -> ColumnTransformer:
 
     preprocessor = ColumnTransformer(
         transformers=[
-            ("cat",  categorical_transformer, CATEGORICAL_COLS),
-            ("num",  numeric_transformer,     NUMERIC_COLS),
-            ("bin",  "passthrough",           BINARY_COLS),
+            ("cat", categorical_transformer, CATEGORICAL_COLS),
+            ("num", numeric_transformer,     NUMERIC_COLS),
+            ("bin", "passthrough",           BINARY_COLS),
         ],
-        remainder="drop"
+        remainder="drop"          # safely drops any unlisted columns
     )
     return preprocessor
 
@@ -124,13 +145,12 @@ def build_preprocessor() -> ColumnTransformer:
 def encode_target(y_train: pd.Series, y_test: pd.Series):
     """
     Encode string class labels to integers.
-    Mapping will be:  Allowed=0, Blocked=1, Needs_Human_Approval=2
-    (alphabetical order used by LabelEncoder)
+    Alphabetical order:  Allowed=0, Blocked=1, Needs_Human_Approval=2
     """
     le = LabelEncoder()
     y_train_enc = le.fit_transform(y_train)
     y_test_enc  = le.transform(y_test)
-    print(f"[PREP] Label encoding: {dict(zip(le.classes_, le.transform(le.classes_)))}")
+    print(f"[PREP] Label encoding : {dict(zip(le.classes_, le.transform(le.classes_)))}")
     return y_train_enc, y_test_enc, le
 
 
@@ -146,7 +166,7 @@ def split_data(X, y, test_size: float = 0.20, random_state: int = 42):
         stratify=y,
         random_state=random_state
     )
-    print(f"[PREP] Train size : {len(X_train):,}  |  Test size : {len(X_test):,}")
+    print(f"[PREP] Train size      : {len(X_train):,}  |  Test size : {len(X_test):,}")
     return X_train, X_test, y_train, y_test
 
 
@@ -157,13 +177,13 @@ def apply_smote(X_train_transformed: np.ndarray, y_train_enc: np.ndarray,
     SMOTE (Synthetic Minority Over-sampling Technique):
       - Generates synthetic examples for the minority classes
       - Applied ONLY to the training set — never the test set
-      - Prevents the model from ignoring Needs_Human_Approval (11%)
+      - Prevents the model from ignoring Needs_Human_Approval (~11%)
     """
     smote = SMOTE(random_state=random_state)
     X_resampled, y_resampled = smote.fit_resample(X_train_transformed, y_train_enc)
 
     unique, counts = np.unique(y_resampled, return_counts=True)
-    print(f"[PREP] After SMOTE — class counts: {dict(zip(unique, counts))}")
+    print(f"[PREP] After SMOTE    : {dict(zip(unique, counts))}")
     return X_resampled, y_resampled
 
 
@@ -195,7 +215,8 @@ def plot_smote_comparison(y_train_enc, y_resampled, label_encoder: LabelEncoder)
         )
         sns.despine(ax=ax)
 
-    fig.suptitle("Class Balance — Training Set", fontweight="bold", y=1.02)
+    fig.suptitle("Class Balance — Training Set (v2 clean features)",
+                 fontweight="bold", y=1.02)
     plt.tight_layout()
     path = os.path.join(REPORTS_DIR, "prep_smote_comparison.png")
     plt.savefig(path, dpi=150, bbox_inches="tight")
@@ -227,13 +248,13 @@ def save_artifacts(preprocessor, label_encoder,
 # ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 60)
-    print("  STEP 2 — Preprocessing Pipeline")
+    print("  STEP 2 — Preprocessing Pipeline  (v2 — leakage-free)")
     print("=" * 60)
 
     # Load
     df = load_data(DATA_PATH)
 
-    # Separate features and target
+    # Separate features and target — leaky columns are excluded here
     X, y = split_features_target(df)
 
     # Stratified train/test split (before any transformation)
@@ -243,7 +264,7 @@ if __name__ == "__main__":
     preprocessor = build_preprocessor()
     X_train_transformed = preprocessor.fit_transform(X_train)
     X_test_transformed  = preprocessor.transform(X_test)
-    print(f"[PREP] Transformed shape → train: {X_train_transformed.shape}  "
+    print(f"[PREP] Transformed    → train: {X_train_transformed.shape}  "
           f"test: {X_test_transformed.shape}")
 
     # Encode target labels
@@ -264,4 +285,5 @@ if __name__ == "__main__":
     )
 
     print("\n[PREP] All artifacts saved to models/")
-    print("[PREP] Step 2 complete. Ready to commit.\n")
+    print("[PREP] Step 2 complete — 11 clean features, no leakage.")
+    print("[PREP] Next → Step 3: Baseline Models\n")
