@@ -1,0 +1,33 @@
+============================================================
+  STEP 5 — Evaluation Report  [XGBoost]
+  v2 — leakage-free (11 clean features)
+============================================================
+
+  Accuracy            : 0.9341
+  Macro F1            : 0.8750
+  Macro ROC-AUC       : 0.9823
+
+  Confidence scores (max predicted probability):
+    Mean              : 0.9515
+    Median            : 0.9979
+    Std dev           : 0.1124
+    % above 0.80      : 90.7%
+    % above 0.90      : 86.1%
+    % above 0.95      : 80.5%
+
+  Classification Report:
+                precision    recall  f1-score   support
+
+       Allowed       0.94      0.90      0.92       105
+       Blocked       0.98      0.97      0.98       287
+Needs Approval       0.68      0.79      0.73        48
+
+      accuracy                           0.93       440
+     macro avg       0.87      0.89      0.88       440
+  weighted avg       0.94      0.93      0.94       440
+
+  Confusion Matrix (raw counts):
+                Allowed  Blocked  Needs Approval
+Allowed              94        0              11
+Blocked               1      279               7
+Needs Approval        5        5              38

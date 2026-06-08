@@ -20,3 +20,6 @@ joblib==1.4.2
 
 # Notebook support (optional)
 ipykernel==6.29.5
+
+streamlit==1.28.0
+plotly==5.15.0
